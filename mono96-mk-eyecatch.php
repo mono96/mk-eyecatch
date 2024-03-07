@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Mono96 MK Eyecatch
- * Description: 管理画面で指定したテキスト（日本語含む）と画像のURLを入力し、画像の真ん中にテキストを追加し、直接ダウンロードするプラグイン。画像URLが未設定の場合はデフォルト画像を使用。フォント指定可能。
- * Version: 1.1
+ * Description: 管理画面で指定したテキスト（日本語含む）と画像のURLを入力し、画像の真ん中にテキストを追加し、直接ダウンロードするプラグイン。画像URLが未設定の場合はデフォルト画像を使用。フォントウェイト700でテキストを表示。
+ * Version: 1.2
  * Author: Mono96
  */
 
@@ -61,9 +61,10 @@ function mono96_mk_eyecatch_process_image() {
     if (isset($_POST['submit_text'])) {
         $image_url = esc_url_raw(get_option('mono96_mk_eyecatch_image_url'));
         $plugin_dir_path = plugin_dir_path(__FILE__);
-        $font_path = $plugin_dir_path . 'NotoSansJP-VariableFont_wght.ttf'; // Ensure the font file is present in the plugin directory.
+        // 太字のフォントファイルを指定してください。
+        $font_path = $plugin_dir_path . 'NotoSansJP-Bold.ttf';
 
-        // If the image URL is not set, use the default image.
+        // 画像URLが未設定の場合、デフォルト画像を使用
         if (empty($image_url)) {
             $image_path = $plugin_dir_path . 'eye2024.jpg';
         } else {
@@ -75,33 +76,39 @@ function mono96_mk_eyecatch_process_image() {
 
         $image = imagecreatefromjpeg($image_path);
         $color = imagecolorallocate($image, 0, 0, 0);
-        $fontSize = 60;
+        $fontSize = 60; // フォントサイズ
         $angle = 0;
+        $lineSpacing = 2; // 行間隔を2行分に設定
         $texts = [
             sanitize_text_field($_POST['mono96_mk_eyecatch_text1']),
             sanitize_text_field($_POST['mono96_mk_eyecatch_text2']),
             sanitize_text_field($_POST['mono96_mk_eyecatch_text3'])
         ];
-        $yOffset = $fontSize;
+        $yOffset = $fontSize * $lineSpacing; // 行間隔を計算
 
+        $y = null;
         foreach ($texts as $text) {
             if (!empty($text)) {
                 $textBox = imagettfbbox($fontSize, $angle, $font_path, $text);
                 $textWidth = $textBox[2] - $textBox[0];
                 $x = (imagesx($image) - $textWidth) / 2;
-                $y = (imagesy($image) / 2) - ((count($texts) - 1) * $yOffset) / 2 + ($yOffset * array_search($text, $texts));
+                if (!isset($y)) {
+                    $y = (imagesy($image) / 2) - ((count($texts) - 1) * $yOffset) / 2;
+                } else {
+                    $y += $yOffset; // 次の行のY座標を計算
+                }
                 imagettftext($image, $fontSize, $angle, $x, $y, $color, $font_path, $text);
             }
         }
 
-        // Generate a timestamp-based filename for the output image.
+        // タイムスタンプを利用したファイル名で画像を保存
         $timestamp = date('YmdHis');
         $temp_image_path = sys_get_temp_dir() . '/mk_eyecatch_' . $timestamp . '.jpg';
         imagejpeg($image, $temp_image_path);
         imagedestroy($image);
 
         if (!empty($image_url) && !is_wp_error($image_path)) {
-            @unlink($image_path); // Delete the downloaded image file if it was used.
+            @unlink($image_path); // 使用した画像ファイルを削除
         }
 
         header('Content-Description: File Transfer');
@@ -113,7 +120,7 @@ function mono96_mk_eyecatch_process_image() {
         header('Content-Length: ' . filesize($temp_image_path));
         readfile($temp_image_path);
 
-        @unlink($temp_image_path); // Delete the temporary image file.
+        @unlink($temp_image_path); // 一時ファイルを削除
 
         exit;
     }
